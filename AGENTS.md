@@ -43,11 +43,16 @@ bash specs/osc-unit-artifact/tools/check-vectors.sh
 bash specs/execution-transcript/tools/check-corpus.sh
 bash specs/pi-spark-task/tools/check-vectors.sh
 bash specs/osh-platform/tools/check-stream-vectors.sh
+
+# The LTP0 native suite (seeded Omega; needs an omega-mv checkout at the sources.json revision)
+sh specs/latent-payload/run-native.sh /path/to/omega-mv
 ```
 
 Every gate is also one step of `tests/gates/run.sh <step>`: `crumb-verify`, `fmt`, `check`, `clippy`, `test`, `zero-disk-secrets`, `anti-slop` and `c-vectors`. `c-vectors` runs every `specs/*/tools/check-*.sh` and passes only when all of them pass, so a new checker named `check-*.sh` is picked up automatically. `anti-slop` fails on any em dash or en dash in `crates/`, `docs/`, `README.md` and `ANTI_ENCLOSURE.md`.
 
 The `make-*.sh` scripts in `specs/*/tools/` regenerate vectors. Run one only when the specification itself changes, and commit the regenerated vectors together with the text.
+
+`specs/latent-payload/run-native.sh` is not part of `c-vectors`, because it needs an outside omega-mv checkout. It resolves this repository root from its own location, checks that every Omega input (`seed/out/omc` at the pinned sha256, the om2 conductor and its two SHA-256 constant fixtures, `om/tls/sha2.om`) exists and names any missing path, then creates the temporary root `seed` link that the unchanged conductor needs and removes it on exit. Without that link the conductor prints `INVALID SHA-256 constant fixture unreadable or malformed` and exits 3.
 
 ## Conventions
 
