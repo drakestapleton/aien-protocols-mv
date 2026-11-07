@@ -1,3 +1,5 @@
+> **Research. Not part of the SI alpha and not supported.** The supported path is [Sovereign Intelligence](https://github.com/aien-dev/sovereign-intelligence). Why this repository is outside it: [feature freeze, DRA-36](https://github.com/aien-dev/sovereign-intelligence/blob/main/notes/feature-freeze.md).
+
 # aien-protocols
 
 This repository holds the written contracts that the parts of AIEN agree on: the byte formats and rules for agent state, inference requests, evaluation, evidence receipts, crumbs, execution transcripts, compiled Omega units, the Omega shell boundary and the task messages between a Raspberry Pi and the DGX Spark. Each contract is a specification in `specs/`, often with test vectors (fixed input files with the verdict a reader must give) and a small C checker that proves the vectors match the text. Next to the specifications sit reference Rust crates in `crates/`. The repository holds contracts only, never private implementations.
