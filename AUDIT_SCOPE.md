@@ -29,7 +29,7 @@ Status (README, 2026-10-19): research grade, pre-alpha. `osc-unit-artifact` v1 i
 5. `specs/execution-transcript/` (TRN1) C verifier; `specs/pi-spark-task/` (PST1) C checker and
    `crates/aien-pi-spark-task` reader and writer.
 6. `specs/osh-platform/`, `specs/crumb-visible/`, remaining crates.
-7. `tests/gates/run.sh` (steps `crumb-verify`, `fmt`, `check`, `clippy`, `test`,
+7. `tests/gates/run.sh` (steps `fmt`, `check`, `clippy`, `test`,
    `zero-disk-secrets`, `anti-slop`, `c-vectors`), `.aien/always`, `.aien/unmapped-ok`,
    `.aien/verify.pub`.
 8. Workflows: `aien-verification.yml` (pull request and push, `contents: read`, advisory; checks
@@ -87,11 +87,9 @@ bash specs/osh-platform/tools/check-stream-vectors.sh
 tests/gates/run.sh c-vectors
 tests/gates/run.sh zero-disk-secrets
 tests/gates/run.sh anti-slop
-tests/gates/run.sh crumb-verify
 ```
 
-- `.aien/always`: `CRUMB-VERIFY`, `PROTO-ZERO-DISK-SECRETS`, `PROTO-ANTI-SLOP`.
-- `crumb-verify` uses `crumb` on `PATH` or the one named by `CRUMB`.
+- `.aien/always`: `PROTO-ZERO-DISK-SECRETS`, `PROTO-ANTI-SLOP`. The `crumb-verify` step and its `CRUMB-VERIFY` gate are retired (DRA-97, 2026-11-07); the `.crumb` files stay as history.
 - README: on 2026-10-19 all of these passed on the Spark on `main` at `fb5fca9`, and
   `crumb verify .` printed `OK: 41 crumbs current`.
 - All commands above: NOT_RUN while writing this document.

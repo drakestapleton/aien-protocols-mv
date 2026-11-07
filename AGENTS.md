@@ -25,8 +25,8 @@ The crates need a stable Rust toolchain (there is no `rust-toolchain.toml`). The
 ## Configuration
 
 - There is no runtime configuration. The crates are libraries and the checkers take no settings.
-- `tests/gates/*.gate` and `tests/gates/run.sh` define the Spark gates. `.aien/always` lists the gates that run on every change (`CRUMB-VERIFY`, `PROTO-ZERO-DISK-SECRETS`, `PROTO-ANTI-SLOP`); `.aien/unmapped-ok` lists the paths that need only those.
-- `tests/gates/run.sh crumb-verify` uses the `crumb` binary on `PATH`, or the one named by `CRUMB`. CI builds it from aien-architecture at the commit pinned in `.github/workflows/aien-verification.yml`.
+- `tests/gates/*.gate` and `tests/gates/run.sh` define the Spark gates. `.aien/always` lists the gates that run on every change (`PROTO-ZERO-DISK-SECRETS`, `PROTO-ANTI-SLOP`); `.aien/unmapped-ok` lists the paths that need only those.
+- Crumbs are retired from the active workflow (DRA-97, 2026-11-07): no gate, step or workflow checks `.crumb` freshness, and the `.crumb` files stay as history.
 
 ## Usage
 
@@ -48,7 +48,7 @@ bash specs/osh-platform/tools/check-stream-vectors.sh
 sh specs/latent-payload/run-native.sh /path/to/omega-mv
 ```
 
-Every gate is also one step of `tests/gates/run.sh <step>`: `crumb-verify`, `fmt`, `check`, `clippy`, `test`, `zero-disk-secrets`, `anti-slop` and `c-vectors`. `c-vectors` runs every `specs/*/tools/check-*.sh` and passes only when all of them pass, so a new checker named `check-*.sh` is picked up automatically. `anti-slop` fails on any em dash or en dash in `crates/`, `docs/`, `README.md` and `ANTI_ENCLOSURE.md`.
+Every gate is also one step of `tests/gates/run.sh <step>`: `fmt`, `check`, `clippy`, `test`, `zero-disk-secrets`, `anti-slop` and `c-vectors`. `c-vectors` runs every `specs/*/tools/check-*.sh` and passes only when all of them pass, so a new checker named `check-*.sh` is picked up automatically. `anti-slop` fails on any em dash or en dash in `crates/`, `docs/`, `README.md` and `ANTI_ENCLOSURE.md`.
 
 The `make-*.sh` scripts in `specs/*/tools/` regenerate vectors. Run one only when the specification itself changes, and commit the regenerated vectors together with the text.
 
@@ -62,7 +62,6 @@ The `make-*.sh` scripts in `specs/*/tools/` regenerate vectors. Run one only whe
 - Deprecate before removing: mark the item and name its replacement for at least one minor release, then list the removal in `CHANGELOG.md`.
 - A consumer that adopts a new tag records it in `CONSUMERS.md` in the same change.
 - No em dashes or en dashes in prose; the `PROTO-ANTI-SLOP` gate enforces it for the paths above.
-- Keep `.crumb` files exactly what the pinned crumb compiler produces; `crumb verify .` must pass.
 
 ## Safety and approvals
 

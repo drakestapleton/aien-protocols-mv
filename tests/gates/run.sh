@@ -12,12 +12,8 @@ step="${1:?usage: tests/gates/run.sh <step>}"
 obs() { printf 'AIEN-OBS %s %s\n' "$1" "$2"; }
 
 case "$step" in
-  crumb-verify)
-    # Hosted: no crumb job in this repo today; the trusted worker and the thin
-    # gate both run `crumb verify .` (ADR 0033 Decision 11). The binary comes
-    # from PATH here; the worker supplies the build pinned by the lane.
-    "${CRUMB:-crumb}" verify .
-    ;;
+  # crumb-verify (gate CRUMB-VERIFY) is retired (DRA-97, 2026-11-07): Crumbs are off the active
+  # workflow, so no gate checks crumb freshness. The .crumb files stay as history.
   fmt)
     cargo fmt --all -- --check
     ;;
