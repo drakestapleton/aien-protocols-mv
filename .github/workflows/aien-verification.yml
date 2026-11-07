@@ -4,6 +4,8 @@
 # qualifies Alpha builds instead: the local pipeline pushes annotated tags alpha/YYYYMMDD.N.
 #   AIEN Checks (pull_request, push to main): advisory. crumb verify, then for enrolled repos
 #     (.aien/verify.pub on origin/main) the portable smoke set named at origin/main.
+#     Style gates named in ADVISORY_GATES (dash lint, DRA-99) still run, but a failure is a warning
+#     and never fails the job: a style finding is never the only reason a pull request is held.
 #   AIEN Alpha (push of an alpha/* tag): the tagged commit must be on main; its signed Spark bundle
 #     from aien-receipts must verify (--require-full) against the trust anchors on origin/main.
 # GitHub-hosted compute builds only the pinned verifier tools, never this repository's code.
@@ -108,6 +110,8 @@ jobs:
 
       - name: Portable smoke set (gates whose requires is only portable, named at the base ref)
         if: steps.anchors.outputs.enrolled == 'true'
+        env:
+          ADVISORY_GATES: PROTO-ANTI-SLOP
         run: |
           base="${{ steps.ids.outputs.base }}"
           names=$(for f in $(git ls-tree -r --name-only "$base" -- tests/gates | grep '\.gate$'); do
@@ -123,7 +127,9 @@ jobs:
           fail=0
           for g in $names; do
             echo "::group::$g"
-            if timeout 600 aien-test run "$g" --evidence-dir "$RUNNER_TEMP/evidence"; then echo "$g: PASS"; else echo "::error::$g: not PASS"; fail=1; fi
+            if timeout 600 aien-test run "$g" --evidence-dir "$RUNNER_TEMP/evidence"; then echo "$g: PASS"
+            elif case " $ADVISORY_GATES " in *" $g "*) true ;; *) false ;; esac; then echo "::warning::$g: not PASS (style gate, advisory, DRA-99)"
+            else echo "::error::$g: not PASS"; fail=1; fi
             echo "::endgroup::"
           done
           exit $fail
