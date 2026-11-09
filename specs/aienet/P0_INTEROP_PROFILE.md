@@ -8,7 +8,7 @@ Tracking: [architecture #311](https://github.com/aien-dev/aien-architecture-mv/i
 
 Independent, explicitly enrolled agents offer bounded computation, accept a typed job, return independently checkable evidence, and receive a transferred, pre-funded **TUR test-credit** payment. The goal is an interoperable verifiable-compute layer, not another general messaging standard, wallet, blockchain, or unconstrained execution environment.
 
-The existing A2A agent interoperability standard and x402 HTTP payment standard are possible **edge adapters**. They are not dependencies of this v0. They do not automatically make our scientific Turing measurement fungible with money. Reference protocols: https://a2a-protocol.org/ and https://www.x402.org/.
+The existing A2A agent interoperability standard and x402 HTTP payment standard are possible **edge adapters**. They are not dependencies of this v0. They do not automatically make my scientific Turing measurement fungible with money. Reference protocols: https://a2a-protocol.org/ and https://www.x402.org/.
 
 ## Existing owners: no duplicate implementation
 
