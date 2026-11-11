@@ -1,5 +1,9 @@
 # aien-protocols
 
+<!-- languages -->
+[English](README.md) · **简体中文**
+<!-- /languages -->
+
 本仓库收录 AIEN 各组成部分共同遵守的书面契约：智能体状态、推理请求、评估、证据凭证、碎屑、执行记录、已编译的 Omega 单元、Omega shell 边界的字节格式与规则，以及树莓派与 DGX Spark 之间的任务消息。每份契约都是 `specs/` 中的一份规范，通常附带测试向量（固定的输入文件，以及读取方必须给出的判定结果），还有一个小型 C 检查器，用来证明这些向量与规范文本一致。规范旁边是 `crates/` 中的 Rust 参考 crate。本仓库只收录契约，从不收录私有实现。
 
 本仓库属于 Sovereign Intelligence（SI）。Aienix 已退役。[sovereign-intelligence](https://github.com/aien-dev/sovereign-intelligence) 是集成、发布与安装中心，签名的 Spark 测试也在那里运行。AienOS 只是操作系统层。参见 aien-architecture 的 [ADR 0045](https://github.com/aien-dev/aien-architecture-mv/blob/main/docs/adr/0045-aienix-retired-sovereign-intelligence-center.md)。
