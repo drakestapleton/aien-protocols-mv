@@ -19,7 +19,7 @@ MJB1 is a proposal format. A valid MJB1 document is **not** an authorization, an
 |---|---|---|---|
 | PST1 task message | `specs/pi-spark-task/` | Yes, as carrier and house pattern | A PST1 `request` payload is at most 800 bytes, so an MJB1 document travels by digest in the PST1 header (`objective_id`, `payload_digest`) and its bytes through the content store. Same byte order (big-endian), same check-order discipline, same C checker plus vectors plus mutants pattern. |
 | Objective id | aien-sovereign-core `crates/aien-runtime/src/objective.rs` | Yes, as a header field | Copied, never minted by a receiver. |
-| ALLEN subject | AIENOS ADR 0018 | Yes, as `subject_id` | 32-byte subject reference; no key material. |
+| ALLEN subject | Aienux ADR 0018 | Yes, as `subject_id` | 32-byte subject reference; no key material. |
 | Effect classes | PST1 section 4 (`effect_class`) | Yes, same values | 0 NONE, 1 COMPUTE, 2 EFFECT. |
 | Effect ledger | aien-sovereign-core `crates/aien-runtime/src/effects.rs` | Yes, as reconciliation authority | An UNCERTAIN effect is reconciled there before any new attempt. |
 | P-256 ECDSA signatures | `crates/aien-provenance` (`p256`) | Yes, same primitive | MJR1 signatures use the curve and hash already used by the signed source grants of this repository. No new cryptosystem. |
