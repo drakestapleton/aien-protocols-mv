@@ -49,12 +49,26 @@ done
 # The compiler is the one OMEGA_SRC itself commits: its seed/out/omc.sha256 names it, the
 # binary must match, and the run prints both so the log records which compiler ran.
 [ -f "$src/seed/out/omc.sha256" ] || die "missing $src/seed/out/omc.sha256"
-pin=$(cut -d' ' -f1 "$src/seed/out/omc.sha256") || die "cannot read $src/seed/out/omc.sha256"
+# The shell builtin read takes the first field, so no helper found on PATH decides the pin.
+pin=
+read -r pin _rest < "$src/seed/out/omc.sha256" || [ -n "$pin" ] || die "cannot read $src/seed/out/omc.sha256"
 [ ${#pin} -eq 64 ] || die "$src/seed/out/omc.sha256 does not hold a sha256: $pin"
 got=$(sha256sum "$src/seed/out/omc") || die "cannot hash $src/seed/out/omc"
 got=${got%% *}
 [ "$got" = "$pin" ] || die "$src/seed/out/omc sha256 $got, but its seed/out/omc.sha256 says $pin"
-printf 'run-native: omc sha256 %s (OMEGA_SRC %s)\n' "$pin" "$(git -C "$src" rev-parse HEAD 2>/dev/null || echo unknown)"
+# The revision printed is the compiler's revision only when the checkout commits these exact
+# bytes: a pair edited in the work tree is refused, not labelled with the commit it is not.
+rev=unknown
+if rev=$(git -C "$src" rev-parse --verify -q HEAD 2>/dev/null); then
+    for rel in seed/out/omc seed/out/omc.sha256; do
+        want=$(git -C "$src" rev-parse -q --verify "HEAD:$rel") || die "$src HEAD does not commit $rel"
+        have=$(git -C "$src" hash-object "$src/$rel") || die "cannot hash $src/$rel"
+        [ "$want" = "$have" ] || die "$src/$rel differs from what $src HEAD ($rev) commits; use a clean checkout"
+    done
+else
+    rev="unknown (not a git checkout)"
+fi
+printf 'run-native: omc sha256 %s (OMEGA_SRC %s)\n' "$pin" "$rev"
 
 # Link targets: reuse a link that already points at OMEGA_SRC, refuse anything else.
 link() {
