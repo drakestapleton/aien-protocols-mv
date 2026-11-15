@@ -124,7 +124,7 @@ Run from this repository root using pinned Omega sources; exact commands and obs
 
 ### Reproduce the native suite
 
-From this repository root, supply `OMEGA_SRC` as a clean checkout of the exact Omega revision in `sources.json`. Use its committed `omc`; do not substitute a newer compiler without a separately recorded rerun.
+From this repository root, run `sh specs/latent-payload/run-native.sh OMEGA_SRC` with `OMEGA_SRC` a clean omega-mv checkout. It uses that checkout's committed `omc`, refuses a binary that does not match its `seed/out/omc.sha256`, and prints the compiler hash and revision it ran. `sources.json` keeps the revision of the original receipts; each rerun on a newer compiler is recorded under `evidence/`. By hand:
 
 ```sh
 mkdir -p build
@@ -132,7 +132,7 @@ ln -s "$OMEGA_SRC" build/nl3-omega
 ln -s "$OMEGA_SRC/seed" seed
 if build/nl3-omega/seed/out/omc < build/nl3-omega/seed/qualification/om2/gate.om > build/nl3-gate; then
   chmod +x build/nl3-gate &&
-  build/nl3-gate build/nl3-omega/seed/out/omc d6290c7663c2b4bafb59eb3fdf812476e977f4c144def71095c6248ef9b96b84 specs/latent-payload/host.cases build/nl3-run
+  build/nl3-gate build/nl3-omega/seed/out/omc "$(cut -d' ' -f1 "$OMEGA_SRC/seed/out/omc.sha256")" specs/latent-payload/host.cases build/nl3-run
 else
   exit 1
 fi

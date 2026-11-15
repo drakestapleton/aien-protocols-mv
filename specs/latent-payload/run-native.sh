@@ -1,9 +1,11 @@
 #!/bin/sh
-# LTP0 native conformance runner: shell glue around the unchanged pinned
+# LTP0 native conformance runner: shell glue around the unchanged
 # omega-mv om2 conductor. It adds no protocol logic.
 #
 # Usage: sh specs/latent-payload/run-native.sh OMEGA_SRC
-#   OMEGA_SRC  checkout of the omega-mv revision named in sources.json.
+#   OMEGA_SRC  an omega-mv checkout; the suite runs on the omc it commits
+#              (named by its seed/out/omc.sha256). The original receipts'
+#              revision stays recorded in sources.json.
 #              The OMEGA_SRC environment variable is used when no argument
 #              is given.
 #
@@ -18,7 +20,6 @@
 # Exit: the conductor's status (0 PASS, 1 FAIL, 3 INVALID, ...), or 2 when
 # a prerequisite is missing or a path would be overwritten.
 
-pin=d6290c7663c2b4bafb59eb3fdf812476e977f4c144def71095c6248ef9b96b84
 cases=specs/latent-payload/host.cases
 scratch=build/nl3-run
 
@@ -42,12 +43,18 @@ for rel in seed/out/omc \
     seed/qualification/om2/fixtures/sha256-k.dec \
     seed/qualification/om2/fixtures/sha256-iv.dec \
     om/tls/sha2.om; do
-    [ -f "$src/$rel" ] || die "missing $src/$rel (OMEGA_SRC must be omega-mv at the sources.json revision)"
+    [ -f "$src/$rel" ] || die "missing $src/$rel (OMEGA_SRC must be an omega-mv checkout)"
 done
 
+# The compiler is the one OMEGA_SRC itself commits: its seed/out/omc.sha256 names it, the
+# binary must match, and the run prints both so the log records which compiler ran.
+[ -f "$src/seed/out/omc.sha256" ] || die "missing $src/seed/out/omc.sha256"
+pin=$(cut -d' ' -f1 "$src/seed/out/omc.sha256") || die "cannot read $src/seed/out/omc.sha256"
+[ ${#pin} -eq 64 ] || die "$src/seed/out/omc.sha256 does not hold a sha256: $pin"
 got=$(sha256sum "$src/seed/out/omc") || die "cannot hash $src/seed/out/omc"
 got=${got%% *}
-[ "$got" = "$pin" ] || die "$src/seed/out/omc sha256 $got, expected $pin"
+[ "$got" = "$pin" ] || die "$src/seed/out/omc sha256 $got, but its seed/out/omc.sha256 says $pin"
+printf 'run-native: omc sha256 %s (OMEGA_SRC %s)\n' "$pin" "$(git -C "$src" rev-parse HEAD 2>/dev/null || echo unknown)"
 
 # Link targets: reuse a link that already points at OMEGA_SRC, refuse anything else.
 link() {
