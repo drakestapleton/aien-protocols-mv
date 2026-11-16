@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # TEST INSTRUMENT ONLY (not production, not a protocol implementation).
-# Independent oracle for the matmul_u32 conformance packet. Written from
-# specs/microjob/SPEC.md sections 3-4 and specs/aienet/jobpath/PROFILE.md, not
-# from the Rust or Omega sources. Python stdlib plus `cryptography` (signature
-# verification only).
+# Digest, document and signature oracle from specs/microjob/SPEC.md and
+# specs/aienet/jobpath/PROFILE.md. Consumer refusal-order columns explicitly
+# model observed Rust/Omega behavior; those columns are not independent
+# contract authority. Python stdlib plus cryptography for signature verification.
 #   oracle.py generate DIR   write vectors (bundle signatures are fresh; documents/payloads deterministic)
 #   oracle.py check DIR      re-derive and compare; verify every bundle signature independently
 import hashlib, struct, sys, os
@@ -420,6 +420,7 @@ def bundle_cases():
     add("golden", seal(doc, pl, priv), pub, NOW, "positive")
     add("golden-now-equals-expiry", seal(doc, pl, priv), pub, NOW + 3600, "equality is admissible (SPEC section 7)")
     add("expired-by-one-second", seal(doc, pl, priv), pub, NOW + 3601)
+    add("node-expired-header-live", seal(matmul_document(pl, pub, node_over=dict(expires=NOW - 1)), pl, priv), pub, NOW, "node expiry must be checked independently of the live header")
     good = seal(doc, pl, priv)
     add("truncated-0", b"", pub, NOW); add("truncated-108", good[:108], pub, NOW)
     add("bad-magic", b"AN0X" + good[4:], pub, NOW)
@@ -465,28 +466,31 @@ def bundle_cases():
 
 def hexs(b): return b.hex() if b else "-"
 
+def write_row(f, values):
+    f.write("\t".join(map(str, values)).rstrip("\t") + "\n")
+
 def generate(out):
     os.makedirs(out, exist_ok=True)
     with open(f"{out}/payload-positive.tsv", "w") as f:
         f.write("# id\tm\tk\tn\tseed\tpayload_hex\toutput_digest_hex\twork\tmemory_bytes\tnote\n")
         for i, m, k, n, s, note in POSITIVE:
-            f.write(f"{i}\t{m}\t{k}\t{n}\t{s}\t{payload(m,k,n,s).hex()}\t{digest(m,k,n,s).hex()}\t{payload_work(m,k,n)}\t{payload_mem(m,k,n)}\t{note}\n")
+            write_row(f, (i, m, k, n, s, payload(m,k,n,s).hex(), digest(m,k,n,s).hex(), payload_work(m,k,n), payload_mem(m,k,n), note))
     with open(f"{out}/payload-negative.tsv", "w") as f:
         f.write("# id\tpayload_hex\tomega_consumer_expect\trust_decode_expect\tnote\n")
         for i, p in NEGATIVE_PAYLOAD:
             om = model_om_consumer(p); rd = model_rust_decode(p)
             if rd == "decode_ok":
                 m, k, n, _ = struct.unpack(">HHHQ", p[1:]); rd = "decode_ok_then_AN0_OVER_BUDGET" if not all(1 <= d <= 256 for d in (m, k, n)) else rd
-            f.write(f"{i}\t{hexs(p)}\t{om}\t{rd}\t\n")
+            write_row(f, (i, hexs(p), om, rd))
     with open(f"{out}/document.tsv", "w") as f:
         f.write("# id\tdocument_hex\texpect\tdag_digest_hex\tnote\n")
         for i, d, note in document_cases():
             r = check_document(d)
-            f.write(f"{i}\t{hexs(d)}\t{r}\t{dag_digest(d).hex() if r=='ok' else '-'}\t{note}\n")
+            write_row(f, (i, hexs(d), r, dag_digest(d).hex() if r=="ok" else "-", note))
     with open(f"{out}/bundle.tsv", "w") as f:
         f.write("# id\tbundle_hex\tpinned_submitter_hex\tnow\texpect\tnote\n")
         for i, b, pin, now, r, note in bundle_cases():
-            f.write(f"{i}\t{hexs(b)}\t{pin.hex()}\t{now}\t{r}\t{note}\n")
+            write_row(f, (i, hexs(b), pin.hex(), now, r, note))
 
 def rows(path):
     out = []
@@ -501,12 +505,28 @@ def check(d):
     bad = 0
     def fail(msg):
         nonlocal bad; bad += 1; print("ORACLE_FAIL", msg)
+    # Coverage is derived from the generating case definitions, never a copied row count.
+    expected = {
+        "payload-positive.tsv": [x[0] for x in POSITIVE],
+        "payload-negative.tsv": [x[0] for x in NEGATIVE_PAYLOAD],
+        "document.tsv": [x[0] for x in document_cases()],
+        "bundle.tsv": [x[0] for x in bundle_cases()],
+    }
+    for name, identities in expected.items():
+        observed = [r[0] for r in rows(f"{d}/{name}")]
+        if len(observed) != len(set(observed)) or set(observed) != set(identities):
+            fail(f"coverage {name}: missing={sorted(set(identities)-set(observed))} unexpected={sorted(set(observed)-set(identities))} duplicate={len(observed)!=len(set(observed))}")
     for r in rows(f"{d}/payload-positive.tsv"):
         i, m, k, n, s = r[0], *map(int, r[1:5]); 
         if r[5] != payload(m, k, n, s).hex() or r[6] != digest(m, k, n, s).hex() or int(r[7]) != payload_work(m, k, n) or int(r[8]) != payload_mem(m, k, n): fail("positive " + i)
     for r in rows(f"{d}/payload-negative.tsv"):
         p = unhex(r[1])
         if model_om_consumer(p) != r[2]: fail("negative-om " + r[0])
+        rd = model_rust_decode(p)
+        if rd == "decode_ok":
+            m, k, n, _ = struct.unpack(">HHHQ", p[1:])
+            if not all(1 <= dim <= MAXD for dim in (m, k, n)): rd = "decode_ok_then_AN0_OVER_BUDGET"
+        if rd != r[3]: fail("negative-rust " + r[0])
     # documents: deterministic -> must equal regenerated bytes; verdicts must equal check_document
     regen = {i: dd for i, dd, _ in document_cases()}
     for r in rows(f"{d}/document.tsv"):

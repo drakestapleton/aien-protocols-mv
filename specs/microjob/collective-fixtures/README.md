@@ -26,7 +26,7 @@ See `GAPS.md`.
 | `vectors/payload-negative.tsv` | malformed, truncated, oversize, wrong-kind, zero and over-bound payloads: expected Omega consumer exit status and expected Rust `decode` result, side by side |
 | `vectors/document.tsv` | golden one-node MJB1 documents and single-byte mutants with the first refusal code SPEC 4.4 requires |
 | `vectors/bundle.tsv` | signed AN0B bundles: positive, framing, signature, expiry, allowlist, binding, bound and cap refusals |
-| `oracle/oracle.py` | independent oracle (test instrument only, Python stdlib + `cryptography` for ECDSA verify). Written from the specs, with a third loop order for the matmul |
+| `oracle/oracle.py` | independent oracle (test instrument only, Python stdlib + `cryptography` for ECDSA verify). Spec-derived digest/document/signature checks with a third loop order for matmul; refusal order is explicitly observed consumer behavior |
 | `run-host.sh` | host runner and controls |
 | `oracle/rust-probe/` | rebuildable external reference instrument with locked dependencies; no production use |
 
@@ -48,15 +48,15 @@ directory. Exit 0 requires every comparison to agree and every control to be det
 
 Comparisons, each independent of the others:
 
-1. oracle re-derives every vector;
+1. oracle requires the full generated case identity set without missing, extra or duplicate rows, then re-derives every vector;
 2. Omega consumer (built with that compiler) against every payload row, positive and negative;
 3. historical Core #662 digests in `evidence/aienet0-20261028/xcheck662.log` against the Omega consumer;
 4. the C reference checker `specs/microjob/tools/mjb_verify.c` against every document row;
-5. optional: a Rust probe linked to `crates/aien-microjob` against every row (decode, document check,
+5. a Rust probe linked to `crates/aien-microjob` against every row (decode, document check,
    `admit_bundle` with real P-256 verification).
 
 Controls (each must be detected): a wrong expected digest, a wrong expected refusal, three mutated Omega
-consumers (domain string, splitmix64 shift, dimension bound), and a wrong expected admission for the Rust probe.
+consumers (domain string, splitmix64 shift, dimension bound), a wrong expected admission for the Rust probe, missing negative cases, and duplicate negative cases. A node-expired/header-live bundle checks node expiry independently.
 
 ## Observed difference between the two consumers
 
@@ -69,3 +69,5 @@ recorded in `payload-negative.tsv`; which one is the contract is gap G4.
 
 Host fixture and host comparison only. No physical transport, no device, no GPU, no model. Native Omega
 MJB1/MJR1 document parity is NOT_RUN (G8).
+
+The existing `tests/gates/run.sh c-vectors` discovers `specs/microjob/tools/check-collective.sh`, which builds the locked reference probe offline in an isolated temporary target and runs this packet. Missing tools or the local Omega source store return NOT_RUN (a nonzero gate result). Python, cryptography, C and Rust are external test instruments only, never dependencies of a trusted production path. The runner prints the source head, dirty-source fingerprint, vector/oracle/runner/probe hashes and tool versions. Rust-builder byte parity remains outside this runner; it compares document admission and digest, not builder output.

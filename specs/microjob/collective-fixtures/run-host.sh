@@ -16,12 +16,18 @@ fail=0; pass=0
 ok() { pass=$((pass+1)); }
 bad() { fail=$((fail+1)); echo "FAIL $*"; }
 notrun() { echo "NOT_RUN: $*"; exit 3; }
-for t in xxd python3 gcc git; do command -v $t >/dev/null || notrun "missing $t"; done
+for t in xxd python3 gcc git sha256sum; do command -v $t >/dev/null || notrun "missing $t"; done
 
 HEAD=$(git --git-dir="$MV" rev-parse main) || notrun "no omega-mv main"
 git --git-dir="$MV" show "$HEAD":seed/out/omc > "$T/omc" && chmod +x "$T/omc" || notrun "no omc on main"
 git --git-dir="$MV" show "$HEAD":om/sha256/sha256-om2.om > "$T/sha.om" || notrun "no SHA unit on main"
 echo "omega-mv main=$HEAD omc_sha256=$(sha256sum < "$T/omc" | cut -c1-64) sha_unit_sha256=$(sha256sum < "$T/sha.om" | cut -c1-64)"
+echo "protocols_head=$(git -C "$ROOT" rev-parse HEAD)"
+echo "protocols_diff_sha256=$(git -C "$ROOT" diff --binary HEAD -- specs/microjob specs/aienet/jobpath crates/aien-microjob | sha256sum | cut -c1-64)"
+git -C "$ROOT" ls-files -- specs/microjob/collective-fixtures specs/microjob/tools/check-collective.sh | while IFS= read -r file; do sha256sum "$ROOT/$file"; done
+python3 --version
+python3 -c 'import cryptography; print("cryptography=" + cryptography.__version__)' || notrun "missing cryptography oracle dependency"
+gcc --version | head -n 1
 echo "microjob SPEC.md sha256=$(sha256sum < "$ROOT/specs/microjob/SPEC.md" | cut -c1-64) consumer .om sha256=$(sha256sum < "$ROOT/specs/aienet/jobpath/matmul_u32_recompute.om" | cut -c1-64)"
 sed 's/^export fn /fn /' "$T/sha.om" > "$T/unit.om"   # program mode has no exports; the only edit, as jobpath/build.sh does
 
@@ -33,6 +39,9 @@ echo "consumer binary sha256=$(sha256sum < "$T/mm" | cut -c1-64)"
 gcc -std=c99 -O2 -Wall -Wextra -Werror -pedantic -o "$T/mjb_verify" "$ROOT/specs/microjob/tools/mjb_verify.c" || notrun "C checker did not build"
 
 V=${VECTORS:-$HERE/vectors}
+for input in "$V"/*.tsv; do sha256sum "$input" || notrun "missing vector input"; done
+if [ -n "${RUST_PROBE:-}" ]; then sha256sum "$RUST_PROBE" || notrun "missing Rust reference executable"; fi
+sha256sum "$T/mjb_verify" "$ROOT/specs/microjob/tools/mjb_verify.c"
 run_payloads() { # $1 binary, $2 vectors dir; prints mismatch count of positives+negatives
   local mis=0 id hex exp got rc
   while IFS=$'\t' read -r id m k n seed hex dig w mem note; do
@@ -62,8 +71,8 @@ if [ -f "$H" ]; then
     case $m in *[!0-9]*|"") continue;; esac
     want=$(printf '%s' "$rest" | sed -n 's/^core662=\([0-9a-f]*\) .*/\1/p'); [ -n "$want" ] || continue
     pay=$(python3 -c "import struct,sys;print(struct.pack('>BHHHQ',1,$m,$k,$n,$seed).hex())")
-    got=$(printf '%s' "$pay" | xxd -r -p | "$T/mm"); hn=$((hn+1))
-    [ "$got" = "$want" ] || { hm=$((hm+1)); echo "  historical $m $k $n $seed want=$want got=$got"; }
+    got=$(printf '%s' "$pay" | xxd -r -p | "$T/mm"); rc=$?; hn=$((hn+1))
+    [ "$rc" = 0 ] && [ "$got" = "$want" ] || { hm=$((hm+1)); echo "  historical $m $k $n $seed want=$want got=$got"; }
   done < "$H"
   echo "historical rows=$hn mismatches=$hm"; [ "$hn" -ge 1 ] && [ "$hm" = 0 ] && ok || bad "historical digests"
 else notrun "historical log absent"; fi
@@ -89,8 +98,8 @@ set -- $(doc_check "$V"); echo "document rows: $1; mismatches=$2"; [ "$1" -ge 1 
 rust_check() { # $1 vectors dir; prints mismatch count
   local mis=0 id hex omx rust note exp dg pin now got want m k n seed w mem
   while IFS=$'\t' read -r id m k n seed hex dg w mem note; do case $id in \#*|"") continue;; esac
-    got=$(echo "pdec ${hex}" | "$RUST_PROBE" | sed -n 's/.*digest=//p'); [ "$?" = 0 ] || { mis=$((mis+1)); continue; }
-    [ "$got" = "$dg" ] || { mis=$((mis+1)); echo "  rust digest $id got=$got want=$dg" >&2; }
+    got=$(echo "pdec ${hex}" | "$RUST_PROBE"); [ "$?" = 0 ] || { mis=$((mis+1)); continue; }
+    [ "$got" = "OK in_bounds=true work=$w memory=$mem digest=$dg" ] || { mis=$((mis+1)); echo "  rust digest $id got=$got want=$dg" >&2; }
   done < "$1/payload-positive.tsv"
   while IFS=$'\t' read -r id hex omx rust note; do case $id in \#*|"") continue;; esac
     [ "$hex" = "-" ] && hex=""
@@ -99,12 +108,12 @@ rust_check() { # $1 vectors dir; prints mismatch count
     [ "$got" = "$want" ] || { mis=$((mis+1)); echo "  rust decode $id got=$got want=$want" >&2; }
   done < "$1/payload-negative.tsv"
   while IFS=$'\t' read -r id hex exp dg note; do case $id in \#*|"") continue;; esac
-    got=$(echo "ddec ${hex}" | "$RUST_PROBE" | cut -d' ' -f1); [ "$?" = 0 ] || { mis=$((mis+1)); continue; }; [ "$got" = OK ] && got=ok
+    got=$(echo "ddec ${hex}" | "$RUST_PROBE"); [ "$?" = 0 ] || { mis=$((mis+1)); continue; }; [ "$got" = "OK dag_digest=$dg" ] && got=ok
     [ "$got" = "$exp" ] || { mis=$((mis+1)); echo "  rust document $id got=$got want=$exp" >&2; }
   done < "$1/document.tsv"
   while IFS=$'\t' read -r id hex pin now exp note; do case $id in \#*|"") continue;; esac
     [ "$hex" = "-" ] && hex=""
-    got=$(echo "admit ${hex} 1 ${now}" | "$RUST_PROBE" | sed 's/^OK /ok /'); [ "$?" = 0 ] || { mis=$((mis+1)); continue; }
+    got=$(echo "admitkey ${hex} ${pin} ${now}" | "$RUST_PROBE" | sed 's/^OK /ok /'); [ "$?" = 0 ] || { mis=$((mis+1)); continue; }
     [ "$got" = "$exp" ] || { mis=$((mis+1)); echo "  rust bundle $id got=$got want=$exp" >&2; }
   done < "$1/bundle.tsv"
   echo $mis
@@ -138,6 +147,17 @@ if [ -n "${RUST_PROBE:-}" ]; then # C6: the Rust comparison must notice a wrong 
   cp "$V/payload-positive.tsv" "$T/v1/payload-positive.tsv"; cp "$V/document.tsv" "$T/v1/document.tsv"; cp "$V/payload-negative.tsv" "$T/v1/payload-negative.tsv"
   n=$(rust_check "$T/v1" 2>/dev/null); [ "$n" -ge 1 ] && ok || bad "control C6 not detected"
 fi
+# Missing or duplicated cases must not turn a reduced packet into a successful full run.
+for control in missing duplicate; do
+  mkdir -p "$T/$control"; cp "$V"/* "$T/$control/"
+  if [ "$control" = missing ]; then
+    awk '!/^#/ && !d {d=1; next} {print}' "$V/payload-negative.tsv" > "$T/$control/payload-negative.tsv"
+  else
+    awk '{print} !/^#/ && !d {print; d=1}' "$V/payload-negative.tsv" > "$T/$control/payload-negative.tsv"
+  fi
+  python3 "$HERE/oracle/oracle.py" check "$T/$control" > "$T/$control.out" 2>&1; rc=$?
+  [ "$rc" = 1 ] && grep -q 'ORACLE_FAIL coverage payload-negative.tsv' "$T/$control.out" && ok || bad "control $control coverage not detected"
+done
 echo "RESULT pass=$pass fail=$fail"
 [ "$fail" = 0 ] || exit 1
 # Fail closed: bundle admission is otherwise checked only by the oracle that generated the rows.
