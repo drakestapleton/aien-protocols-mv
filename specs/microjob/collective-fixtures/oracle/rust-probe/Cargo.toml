@@ -1,0 +1,9 @@
+[package]
+name = "ocf-probe"
+version = "0.0.0"
+edition = "2021"
+[dependencies]
+aien-microjob = { path = "../../../../../crates/aien-microjob" }
+aien-provenance = { path = "../../../../../crates/aien-provenance" }
+p256 = { version = "0.14.0", features = ["ecdsa"] }
+[workspace]
